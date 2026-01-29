@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+<meta charset="UTF-8">
+<title>ChipOS: A 2MB Operating System for RISC-V</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+
+<body>
+<header>
+<div class="container">
+<nav>
+<div class="links">
+<a href="../index.html">/home</a>
+<a href="../photos.html">/photos</a>
+<a href="../projects.html">/projects</a>
+</div>
+<div class="social-links">
+<a href="https://github.com/cigi10" target="_blank" aria-label="GitHub" title="GitHub">
+<i class="fab fa-github"></i>
+</a>
+<a href="https://in.linkedin.com/in/prachi-gore-604416294" target="_blank" aria-label="LinkedIn" title="LinkedIn">
+<i class="fab fa-linkedin-in"></i>
+</a>
+<a href="mailto:you@example.com" aria-label="Email" title="Email">
+<i class="fas fa-envelope"></i>
+</a>
+</div>
+</nav>
+</div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="blog-content">
+      <h1>/chipos</h1>
+
+      <p style="opacity: 0.7; font-size: 0.95em; margin-bottom: 2em;">
+  <i class="fas fa-calendar"></i> November 2025 &nbsp;|&nbsp;
+  <i class="fas fa-tag"></i> C, RISC-V Assembly, Operating Systems &nbsp;|&nbsp;
+  <i class="fas fa-clock"></i> 15 min read
+</p>
+
+<div class="note">
+  <strong>TL;DR:</strong> A complete microkernel operating system in 3,500 lines of C and RISC-V assembly that boots in 35 milliseconds. Features custom bootloader, memory allocator, hierarchical filesystem, UART driver, VIM-style editor with syntax highlighting for C/Verilog/Assembly, and an interactive shell—all in a 2MB binary with no external dependencies.
+</div>
+
+      <p>
+        Most operating systems are millions of lines of code. Linux is over 30 million. Windows is similar. ChipOS is 3,500 lines, boots in 35 milliseconds, and includes a VIM-style text editor with syntax highlighting.
+      </p>
+
+      <p>
+        I built it from scratch to understand how operating systems actually work—by writing one for bare-metal RISC-V with no external dependencies.
+      </p>
+
+      <h2>What ChipOS Actually Is</h2>
+
+      <p>
+        ChipOS is a microkernel OS targeting hardware designers and embedded developers. It's a complete development environment that runs directly on RISC-V processors—no host OS required.
+      </p>
+
+      <p><strong>Core Features:</strong></p>
+      <ul>
+        <li>Custom bootloader written in RISC-V assembly</li>
+        <li>Memory allocator managing a 1MB heap</li>
+        <li>UART driver for serial I/O via memory-mapped I/O</li>
+        <li>Hierarchical filesystem stored entirely in RAM</li>
+        <li>Two text editors: a basic line editor and a VIM-style modal editor</li>
+        <li>Interactive shell with command history and syntax highlighting</li>
+        <li>Support for C/C++, Verilog/SystemVerilog, and RISC-V assembly</li>
+      </ul>
+
+      <p>
+        The entire system—kernel, drivers, filesystem, editors, shell—compiles to a single 2MB binary that boots directly on QEMU or real RISC-V hardware.
+      </p>
+
+      <h2>The Editors and Syntax Highlighting</h2>
+
+      <p>
+        ChipOS includes two text editors because different tasks need different tools. The basic line editor (<code>edit</code>) is perfect for quick file edits—type your content, save with <code>:w</code>, done. But the real work happens in <code>code</code>, a VIM-style modal editor with full syntax highlighting.
+      </p>
+
+      <img src="../images/chipos/code_editor1.png" alt="VIM-style code editor">
+
+      <p>
+        The editor automatically detects language from file extensions and highlights keywords, comments, strings, and preprocessor directives. It works in both command mode (navigate with hjkl or arrow keys) and insert mode (type normally, ESC to return).
+      </p>
+
+      <img src="../images/chipos/c_syntax_highlight.png" alt="C syntax highlighting">
+      <img src="../images/chipos/sv_syntax_highlight.png" alt="Verilog syntax highlighting">
+      <img src="../images/chipos/asm_syntax_highlight.png" alt="Assembly syntax highlighting">
+
+      <p>
+        The highlighter parses each line in real-time, checking for language-specific patterns and matching words against keyword tables. Since serial I/O at 9600 baud is the bottleneck anyway, the CPU overhead is negligible.
+      </p>
+
+      <h2>System Architecture</h2>
+
+      <img src="../images/chipos/architecture.png" alt="ChipOS System Architecture">
+
+      <p>
+        Everything is statically linked. The kernel, drivers, and user applications live in the same address space. There's no virtual memory, no process isolation, no privilege levels. This simplicity makes the system easier to understand and debug.
+      </p>
+
+      <h2>Boot Sequence</h2>
+
+      <p>
+        When you power on the system, execution starts at <code>0x80000000</code>—the RISC-V reset vector. The bootloader sets up the stack pointer, zeros out uninitialized data, and jumps to the kernel.
+      </p>
+
+      <img src="../images/chipos/boot-sequence.png" alt="ChipOS Boot Sequence">
+
+      <p>
+        The kernel initializes three things in order: the console (UART driver), memory (heap allocator), and filesystem (directory structure). Then it drops into the interactive shell. Total boot time: 35 milliseconds.
+      </p>
+
+      <img src="../images/chipos/kernel_load.png" alt="Kernel boot output">
+
+      <p>
+        The first time I saw that boot sequence complete and the shell prompt appear, I just stared at it for a minute. Months of reading documentation, writing assembly, debugging memory corruption—and suddenly there was a working operating system responding to commands.
+      </p>
+
+      <h2>Memory Layout</h2>
+
+      <p>
+        ChipOS uses a flat memory model—physical addresses are the same as virtual addresses. The binary has three sections: text (executable code), data (constants), and BSS (uninitialized data).
+      </p>
+
+      <img src="../images/chipos/memory-layout.png" alt="ChipOS Memory Layout">
+
+      <p>
+        The BSS section is 2.27 MB because it contains the 1MB heap for dynamic allocations, 1MB of filesystem storage, 256KB of editor buffers, and filesystem metadata. The actual executable code is only 45KB—the rest is data structures for runtime use.
+      </p>
+
+      <img src="../images/chipos/mem.png" alt="Memory usage after boot">
+
+      <h2>The Filesystem</h2>
+
+      <p>
+        The filesystem is RAM-based—everything lives in memory, nothing persists across reboots. Files are stored in a flat array of 256 entries. Each entry has a name, type (file or directory), size, and a parent ID pointing to another entry in the array.
+      </p>
+
+      <p>
+        The root directory is entry 0 with parent 0 (itself). When you create <code>/home/main.c</code>, the system finds the entry for "home" and creates a new entry for "main.c" pointing to it as the parent. To build full paths, you walk up the parent chain until you hit root.
+      </p>
+
+      <p>
+        File contents live in a separate 1MB byte array, with each file storing an offset into that array. It's simple and works well for embedded targets that often lack persistent storage anyway.
+      </p>
+
+      <h2>The Memory Allocator</h2>
+
+      <p>
+        The heap allocator uses first-fit allocation—walk the linked list of memory blocks until you find one that's free and big enough, then split it if necessary. When you free a block, it immediately merges with adjacent free blocks to prevent fragmentation.
+      </p>
+
+      <p>
+        Each block has a small header storing its size, free status, and a pointer to the next block. The allocator manages a 1MB heap and handles typical allocations under 1KB efficiently. First-fit is simpler than best-fit and faster in practice for this use case.
+      </p>
+
+      <h2>The UART Driver</h2>
+
+      <p>
+        All I/O goes through a single UART at memory address <code>0x10000000</code>. The driver does memory-mapped I/O—reading and writing bytes directly to hardware registers.
+      </p>
+
+      <p>
+        The system uses polling instead of interrupts. It spins waiting for the UART to be ready before sending or receiving characters. This works because ChipOS is single-threaded, the UART is the only I/O device, and human typing is slow enough for the CPU to keep up.
+      </p>
+
+      <p>
+        The UART controller is 16550-compatible—a classic design from the 1980s still used in embedded systems today.
+      </p>
+
+      <h2>What I Learned</h2>
+
+      <p><strong>I/O dominates performance.</strong> The UART runs at 9600 baud—orders of magnitude slower than the CPU. Serial I/O is the real bottleneck, not any algorithm optimization. Understanding where the actual constraints are changes how you think about performance.</p>
+
+      <p><strong>Simplicity wins.</strong> First-fit allocation is straightforward and works well for this use case. Simple code is easier to debug and often faster in practice than theoretically optimal solutions with more complexity.</p>
+
+      <p><strong>The standard library does more than you think.</strong> Implementing <code>strcmp()</code>, <code>strlen()</code>, and <code>memcpy()</code> from scratch gives you a new appreciation for edge cases and buffer management. These "simple" functions handle a lot of corner cases most people never think about.</p>
+
+      <p><strong>Hardware constraints are real.</strong> RISC-V requires aligned memory access—unaligned pointers trigger faults immediately. There's no debugger safety net on bare metal. You learn to be careful because the hardware won't forgive mistakes.</p>
+
+      <h2>Try It Yourself</h2>
+
+      <p>ChipOS is open source and runs in QEMU. No special hardware needed.</p>
+
+      <pre><code># Install RISC-V toolchain
+sudo apt install gcc-riscv64-linux-gnu qemu-system-misc
+
+# Clone and build
+git clone https://github.com/cigi10/chipos.git
+cd chipos
+make clean && make run</code></pre>
+
+      <img src="../images/chipos/help.png" alt="ChipOS help command">
+
+      <p>Try these commands:</p>
+      <pre><code>ls -l              # List files
+mkdir project      # Create directory
+cd project         # Change directory
+touch main.c       # Create file
+code main.c        # Edit with syntax highlighting
+cat main.c         # View with colors
+mem                # Show memory usage</code></pre>
+
+      <img src="../images/chipos/file_operations.png" alt="File operations in ChipOS">
+
+      <p>The editor supports C/C++, Verilog/SystemVerilog, and RISC-V Assembly with keyword highlighting, comment detection, and string parsing.</p>
+
+      <h2>Final Thoughts</h2>
+
+      <p>
+        ChipOS boots in 35 milliseconds, runs in 2.3 MB of RAM, and provides a complete development environment for RISC-V. It's a working operating system you can run on real hardware or in an emulator.
+      </p>
+
+      <p>
+        If you're curious about operating systems, build one. Start with a bootloader, add a memory allocator, implement a filesystem, write a shell. You'll learn more in one weekend than from a semester of textbooks.
+      </p>
+
+      <hr>
+
+      <p>
+        <strong>Read the code:</strong> <a href="https://github.com/cigi10/chipos">github.com/cigi10/chipos</a>
+      </p>
+
+      <p><strong>Technical details:</strong></p>
+      <ul>
+        <li>Target: RISC-V RV64IMAC</li>
+        <li>Toolchain: GNU GCC 15 for RISC-V</li>
+        <li>Emulator: QEMU 9.1.0 (<code>qemu-system-riscv64</code>)</li>
+        <li>Language: C11 + RISC-V assembly</li>
+        <li>Build system: GNU Make</li>
+        <li>Lines of code: ~3,500 (excluding comments)</li>
+        <li>Tested on: QEMU virt machine (RISC-V 64-bit)</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<footer>
+<div class="container"> ∞︎︎ prachi</div>
+</footer>
+</body>
+</html>

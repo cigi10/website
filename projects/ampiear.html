@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+<meta charset="UTF-8">
+<title>AmpiEar</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+
+<body>
+<header>
+<div class="container">
+<nav>
+<div class="links">
+<a href="../index.html">/home</a>
+<a href="../photos.html">/photos</a>
+<a href="../projects.html">/projects</a>
+</div>
+<div class="social-links">
+<a href="https://github.com/cigi10" target="_blank" aria-label="GitHub" title="GitHub">
+<i class="fab fa-github"></i>
+</a>
+<a href="https://in.linkedin.com/in/prachi-gore-604416294" target="_blank" aria-label="LinkedIn" title="LinkedIn">
+<i class="fab fa-linkedin-in"></i>
+</a>
+<a href="mailto:you@example.com" aria-label="Email" title="Email">
+<i class="fas fa-envelope"></i>
+</a>
+</div>
+</nav>
+</div>
+</header>
+
+<main>
+  
+  <div class="container blog-content">
+    <h1>/ampiear</h1>
+    <p style="opacity: 0.7; font-size: 0.95em; margin-bottom: 2em;">
+  <i class="fas fa-calendar"></i> December 2025 &nbsp;|&nbsp;
+  <i class="fas fa-tag"></i> DSP, Python, Signal Processing &nbsp;|&nbsp;
+  <i class="fas fa-clock"></i> 18 min read
+</p>
+
+<div class="note">
+  <strong>TL;DR:</strong> A complete hearing aid DSP pipeline implementing STFT-based multiband processing, VAD-driven noise reduction, NAL-NL2 insertion gain, per-band WDRC compression, and phase-preserving resynthesis. Built to understand how audiograms translate into frequency-specific gain and how modern hearing aids process sound without destroying phase coherence.
+</div>
+
+    <p>
+      I wear a hearing aid. At some point, I got curious: how does it actually work? 
+      How does an audiogram translate into frequency-specific gain? How does wide dynamic 
+      range compression prevent loud sounds from clipping while keeping soft sounds audible? 
+      How do you process six frequency bands independently without destroying phase coherence?
+    </p>
+
+    <p>
+      This project implements a complete DSP pipeline that mirrors the architecture of real 
+      hearing aids: STFT-based multiband processing, VAD-driven noise reduction, NAL-NL2 
+      insertion gain, per-band WDRC compression, and phase-preserving resynthesis.
+    </p>
+
+    <p>
+      It's not a product. It's a technical investigation into how modern hearing aids 
+      process sound — written for people who know DSP and want to see how the pieces fit together.
+    </p>
+
+    <hr>
+
+    <h2>Architecture Overview</h2>
+
+    <p>The full pipeline:</p>
+
+    <img src="../images/ampiear/pipeline.jpg" alt="Complete hearing aid processing pipeline">
+
+    <p>Each block exists for a physiological or perceptual reason:</p>
+
+    <ol>
+      <li><strong>Pre-processing</strong> — Remove DC offset, boost high frequencies</li>
+      <li><strong>STFT</strong> — Time–frequency analysis with 75% overlap</li>
+      <li><strong>6-Band Filter Bank</strong> — Frequency-dependent processing</li>
+      <li><strong>Noise Reduction</strong> — VAD + Wiener filtering per band</li>
+      <li><strong>NAL-NL2 Gain</strong> — Frequency-specific amplification based on hearing loss</li>
+      <li><strong>WDRC Compression</strong> — Level-dependent gain with attack/release</li>
+      <li><strong>ISTFT Synthesis</strong> — Phase-preserving reconstruction</li>
+      <li><strong>Soft Limiting</strong> — Prevent clipping without hard distortion</li>
+    </ol>
+
+    <p>Let's break down each stage.</p>
+
+    <hr>
+
+    <h2>1. Pre-Processing: Cleaning the Input</h2>
+
+    <h3>DC Offset Removal</h3>
+
+    <p>
+      Recording hardware often introduces a DC bias — a constant offset in the waveform. 
+      A 1st-order Butterworth high-pass filter at 20 Hz removes it without affecting speech 
+      (fundamental frequencies start around 80 Hz for males, 150 Hz for females).
+    </p>
+
+    <div class="equation-block">
+      <p><strong>Transfer function:</strong></p>
+      $$H(s) = \frac{s}{s + \omega_c}$$
+      <p>where \(\omega_c = 2\pi \cdot 20\) rad/s</p>
+    </div>
+
+    <h3>Pre-Emphasis</h3>
+
+    <p>
+      Speech has more energy in low frequencies. Pre-emphasis applies a 1st-order FIR filter 
+      to boost high frequencies, preventing low-frequency vowels from dominating during later 
+      processing stages and making consonants like <em>s</em>, <em>f</em>, and <em>t</em> more 
+      visible to the noise reduction and gain algorithms.
+    </p>
+
+    <div class="equation-block">
+      $$y[n] = x[n] - \alpha \cdot x[n-1]$$
+      <p>where \(\alpha = 0.97\)</p>
+    </div>
+
+    <hr>
+
+    <h2>2. STFT: Time–Frequency Analysis</h2>
+
+    <p>
+      Speech is non-stationary — its frequency content changes every few milliseconds. 
+      The Short-Time Fourier Transform converts the signal into a time–frequency representation.
+    </p>
+
+    <img src="../images/ampiear/stft.jpg" alt="STFT decomposition showing windowing and FFT">
+
+    <p><strong>Parameters:</strong></p>
+    <ul>
+      <li>FFT size: 2048 samples (~128 ms at 16 kHz)</li>
+      <li>Hop length: 512 samples (75% overlap)</li>
+      <li>Window: Hann</li>
+    </ul>
+
+    <p>
+      The 75% overlap ensures smooth resynthesis and reduces spectral leakage during ISTFT.
+    </p>
+
+    <div class="equation-block">
+      $$X(k, m) = \sum_{n=0}^{N-1} x[n + mH] \cdot w[n] \cdot e^{-j2\pi kn/N}$$
+      <p>where:</p>
+      <ul>
+        <li>\(k\) = frequency bin</li>
+        <li>\(m\) = time frame</li>
+        <li>\(H\) = hop length</li>
+        <li>\(w[n]\) = window function</li>
+      </ul>
+    </div>
+
+    <p>
+      This produces a complex matrix where \(|X(k,m)|\) is magnitude and \(\angle X(k,m)\) is phase. 
+      Phase is preserved throughout processing and reapplied during synthesis.
+    </p>
+
+    <hr>
+
+    <h2>3. Multiband Filter Bank</h2>
+
+    <p>
+      Hearing loss is frequency-dependent. Instead of global amplification, we split the signal 
+      into <strong>six frequency bands</strong>:
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Band</th>
+          <th>Frequency Range</th>
+          <th>Typical Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>B0</td>
+          <td>0–250 Hz</td>
+          <td>Low-frequency vowels</td>
+        </tr>
+        <tr>
+          <td>B1</td>
+          <td>250–500 Hz</td>
+          <td>Vowel formants</td>
+        </tr>
+        <tr>
+          <td>B2</td>
+          <td>500–1000 Hz</td>
+          <td>Mid vowels, nasals</td>
+        </tr>
+        <tr>
+          <td>B3</td>
+          <td>1000–2000 Hz</td>
+          <td>High vowels, fricatives</td>
+        </tr>
+        <tr>
+          <td>B4</td>
+          <td>2000–4000 Hz</td>
+          <td>Consonants (s, sh, f)</td>
+        </tr>
+        <tr>
+          <td>B5</td>
+          <td>4000–8000 Hz</td>
+          <td>High-frequency consonants</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Each band is extracted by frequency masking in the STFT domain. This allows independent 
+      processing per band — critical because someone might have normal hearing below 1 kHz but 
+      significant loss above 2 kHz.
+    </p>
+
+    <div class="equation-block">
+      <p><strong>Frequency-to-bin mapping:</strong></p>
+      $$k = \left\lfloor \frac{f \cdot N_{FFT}}{f_s} \right\rceil$$
+      <p>where \(f\) is frequency in Hz, \(N_{FFT}\) is FFT size, \(f_s\) is sample rate</p>
+    </div>
+
+    <div class="note">
+      <strong>Note:</strong> Real hearing aids use 6–24 bands. This implementation uses six, 
+      which is typical for mid-range devices.
+    </div>
+
+    <hr>
+
+    <h2>4. Noise Reduction: VAD + Wiener Filtering</h2>
+
+    <p>
+      Understanding speech in noise is one of the biggest challenges for hearing-impaired listeners.
+    </p>
+
+    <img src="../images/ampiear/noise_reduction.jpg" alt="Noise reduction signal flow">
+
+    <h3>Voice Activity Detection (VAD)</h3>
+
+    <p>We detect speech vs silence using:</p>
+
+    <ol>
+      <li><strong>Energy (RMS)</strong> — Speech frames have higher energy</li>
+      <li><strong>Zero-Crossing Rate (ZCR)</strong> — Voiced speech has low ZCR, unvoiced consonants have high ZCR</li>
+    </ol>
+
+    <p>
+      Features are normalized to zero mean and unit variance. Frames with 
+      <code>energy_norm > 0 OR zcr_norm > 0</code> are marked as speech. 
+      Frames with <code>VAD = 0</code> are assumed to contain mostly noise.
+    </p>
+
+    <h3>Noise Power Estimation</h3>
+
+    <p>For each band, we estimate noise power from non-speech frames:</p>
+
+    <div class="equation-block">
+      $$P_n(f) = \frac{1}{M} \sum_{m \in \text{VAD}=0} |X(f, m)|^2$$
+      <p>where \(M\) is the number of noise frames</p>
+    </div>
+
+    <p>If no silent frames exist, we use the quietest 20% of frames.</p>
+
+    <h3>Wiener Filter</h3>
+
+    <p>The Wiener filter suppresses noise while preserving speech:</p>
+
+    <div class="equation-block">
+      $$G(f, m) = \frac{\text{SNR}(f, m)}{\text{SNR}(f, m) + 1}$$
+      
+      <p>where signal-to-noise ratio is:</p>
+      $$\text{SNR}(f, m) = \frac{P_s(f, m)}{P_n(f)}$$
+      
+      <p>and signal power is estimated as:</p>
+      $$P_s(f, m) = \max\left( |X(f, m)|^2 - P_n(f), 0 \right)$$
+    </div>
+
+    <p>
+      A floor of 0.001 (−60 dB) prevents complete signal removal. This attenuates noise-dominated 
+      frequency bins while preserving speech components.
+    </p>
+
+    <hr>
+
+    <h2>5. Hearing Loss and HL(f)</h2>
+
+    <p>An audiogram measures hearing loss at specific frequencies. Example profile:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Frequency (Hz)</th>
+          <th>Hearing Loss (dB)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>250</td><td>10</td></tr>
+        <tr><td>500</td><td>15</td></tr>
+        <tr><td>1000</td><td>20</td></tr>
+        <tr><td>2000</td><td>30</td></tr>
+        <tr><td>4000</td><td>45</td></tr>
+        <tr><td>8000</td><td>55</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      We represent this as a function \(\text{HL}(f)\) — hearing loss in dB at frequency \(f\). 
+      For each band, we compute the center frequency and interpolate the audiogram to obtain 
+      per-band loss \(\text{HL}_k\). This is the biological deficit the DSP compensates for.
+    </p>
+
+    <div class="equation-block">
+      $$f_{\text{center}} = \frac{f_{\text{low}} + f_{\text{high}}}{2}$$
+      $$\text{HL}_k = \text{interp}(f_{\text{center}}, \text{audiogram})$$
+    </div>
+
+    <hr>
+
+    <h2>6. NAL-NL2 Insertion Gain</h2>
+
+    <p>
+      Simply restoring full hearing loss would be uncomfortable and unnatural (100% gain on a 
+      50 dB loss = too loud). Instead, we use a <strong>simplified NAL-NL2 prescription</strong>.
+    </p>
+
+    <img src="../images/ampiear/nal_gain.jpg" alt="NAL-NL2 gain mapping from audiogram">
+
+    <div class="equation-block">
+      $$G_k = k \cdot \text{HL}_k - \frac{L_{\text{in}} - 65}{\text{CR}}$$
+      
+      <p>where:</p>
+      <ul>
+        <li>\(k = 0.5\) (partial compensation factor)</li>
+        <li>\(L_{\text{in}}\) = input level in dB SPL</li>
+        <li>\(\text{CR}\) = compression ratio (typically 2:1)</li>
+      </ul>
+    </div>
+
+    <p><strong>Key ideas:</strong></p>
+    <ul>
+      <li><strong>Partial compensation (~50%)</strong> — Over-amplification sounds unnatural</li>
+      <li><strong>Less gain for louder inputs</strong> — Loud sounds need less boost</li>
+      <li><strong>More gain for high frequencies</strong> — Where consonants live</li>
+    </ul>
+
+    <p>Input level is estimated per-band using RMS:</p>
+
+    <div class="equation-block">
+      $$L_{\text{in}} = 65 + 20 \log_{10}\left( \text{RMS}_{\text{band}} \right)$$
+    </div>
+
+    <p>This improves intelligibility without over-amplifying vowels.</p>
+
+    <hr>
+
+    <h2>7. WDRC: Wide Dynamic Range Compression</h2>
+
+    <p>
+      Speech spans 30–90+ dB. Hearing loss narrows the usable range. WDRC applies 
+      <strong>level-dependent gain</strong>.
+    </p>
+
+    <img src="../images/ampiear/wdrc.jpg" alt="WDRC compression input/output characteristic">
+
+    <h3>Compression Formula</h3>
+
+    <p><strong>Below threshold:</strong></p>
+    <div class="equation-block">
+      $$\text{Gain} = 0 \text{ dB (linear pass-through)}$$
+    </div>
+
+    <p><strong>Above threshold (with soft knee):</strong></p>
+    <div class="equation-block">
+      $$\text{Gain Reduction} = (L_{\text{in}} - T) \cdot \left(1 - \frac{1}{\text{CR}}\right)$$
+      
+      <p>where:</p>
+      <ul>
+        <li>\(T\) = threshold (typically 50 dB)</li>
+        <li>\(\text{CR}\) = compression ratio (e.g., 3:1)</li>
+      </ul>
+    </div>
+
+    <p><strong>Soft knee transition:</strong></p>
+    <div class="equation-block">
+      <p>For \(T - W/2 < L_{\text{in}} < T + W/2\):</p>
+      $$\text{Gain Reduction} = \frac{(L_{\text{in}} - T + W/2)^2}{2W} \cdot \left(1 - \frac{1}{\text{CR}}\right)$$
+      <p>where \(W\) is knee width (typically 10 dB)</p>
+    </div>
+
+    <h3>Attack and Release</h3>
+
+    <p>WDRC uses an envelope follower to smooth gain changes:</p>
+
+    <div class="equation-block">
+      $$\text{Env}[n] = \begin{cases}
+      \text{Env}[n-1] + \alpha_{\text{attack}} \cdot (|x[n]| - \text{Env}[n-1]) & \text{if } |x[n]| > \text{Env}[n-1] \\
+      \text{Env}[n-1] + \alpha_{\text{release}} \cdot (|x[n]| - \text{Env}[n-1]) & \text{otherwise}
+      \end{cases}$$
+      
+      <p>where the coefficients are:</p>
+      $$\alpha_{\text{attack}} = 1 - e^{-1 / (t_{\text{attack}} \cdot f_s / 1000)}$$
+      $$\alpha_{\text{release}} = 1 - e^{-1 / (t_{\text{release}} \cdot f_s / 1000)}$$
+    </div>
+
+    <p><strong>Typical values:</strong></p>
+    <ul>
+      <li>Attack time: 5 ms (fast response to loud sounds)</li>
+      <li>Release time: 100 ms (slow recovery to prevent pumping)</li>
+    </ul>
+
+    <p>
+      This prevents loud sounds from becoming painful while keeping soft sounds audible.
+    </p>
+
+    <hr>
+
+    <h2>8. Recombination and Resynthesis</h2>
+
+    <p>
+      After processing, each band is reinserted into its original frequency bins. 
+      Phase is preserved from the original STFT:
+    </p>
+
+    <div class="equation-block">
+      $$X_{\text{full}}(k, m) = |X_{\text{processed}}(k, m)| \cdot e^{j\angle X_{\text{original}}(k, m)}$$
+    </div>
+
+    <p>The inverse STFT reconstructs the time-domain signal:</p>
+
+    <div class="equation-block">
+      $$x[n] = \frac{1}{N} \sum_{m} \sum_{k=0}^{N-1} X(k, m) \cdot e^{j2\pi kn/N} \cdot w[n - mH]$$
+    </div>
+
+    <p>This ensures:</p>
+    <ul>
+      <li>No frequency gaps</li>
+      <li>No phase distortion</li>
+      <li>Clean resynthesis</li>
+    </ul>
+
+    <hr>
+
+    <h2>9. Post-Processing: Preventing Clipping</h2>
+
+    <p>Multiband processing often causes peaks to add constructively.</p>
+
+    <img src="../images/ampiear/postprocessing.jpg" alt="Post-processing flow with soft limiting">
+
+    <h3>Soft Limiting</h3>
+
+    <p>A <code>tanh</code> limiter smoothly compresses peaks without hard clipping:</p>
+
+    <div class="equation-block">
+      $$y[n] = \tanh(g \cdot x[n])$$
+      <p>where \(g\) is a gain factor (typically 1.0)</p>
+    </div>
+
+    <p>
+      This is <strong>critical</strong> — hard clipping at ±1.0 introduces high-frequency harmonics 
+      that sound harsh. <code>tanh</code> provides smooth saturation with lower harmonic distortion.
+    </p>
+
+    <h3>Normalization</h3>
+
+    <p>The output is normalized to −3 dBFS with 10% headroom:</p>
+
+    <div class="equation-block">
+      $$\text{scale} = \frac{10^{-3/20} \cdot (1 - 0.1)}{\max(|x[n]|)}$$
+      $$y[n] = \text{scale} \cdot x[n]$$
+    </div>
+
+    <hr>
+
+    <h2>Results</h2>
+
+    <div class="results-box">
+      <h3>Diagnostic Metrics</h3>
+      
+      <p><strong>Before Processing:</strong></p>
+      <ul>
+        <li>Peak: 1.5 (clipping)</li>
+        <li>RMS: 0.45</li>
+        <li>Crest factor: 10.5 dB</li>
+        <li>Clipping: 15.3% of samples</li>
+      </ul>
+
+      <p><strong>After Processing:</strong></p>
+      <ul>
+        <li>Peak: 0.89 (−1.0 dBFS)</li>
+        <li>RMS: 0.58 (+2.2 dB)</li>
+        <li>Crest factor: 3.7 dB (compression working)</li>
+        <li>Clipping: 0%</li>
+      </ul>
+    </div>
+
+    <h3>Per-Band Gains</h3>
+
+    <p>For HL = {250:10, 500:15, 1000:20, 2000:30, 4000:45, 8000:55}:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Band</th>
+          <th>Center Freq</th>
+          <th>HL (dB)</th>
+          <th>Input Level</th>
+          <th>Gain Applied</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>B0</td><td>125 Hz</td><td>10 dB</td><td>68 dB SPL</td><td>+3.5 dB</td></tr>
+        <tr><td>B1</td><td>375 Hz</td><td>12.5 dB</td><td>70 dB SPL</td><td>+3.8 dB</td></tr>
+        <tr><td>B2</td><td>750 Hz</td><td>17.5 dB</td><td>65 dB SPL</td><td>+8.8 dB</td></tr>
+        <tr><td>B3</td><td>1500 Hz</td><td>25 dB</td><td>62 dB SPL</td><td>+11.0 dB</td></tr>
+        <tr><td>B4</td><td>3000 Hz</td><td>37.5 dB</td><td>58 dB SPL</td><td>+15.3 dB</td></tr>
+        <tr><td>B5</td><td>6000 Hz</td><td>50 dB</td><td>55 dB SPL</td><td>+20.0 dB</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      The before/after spectrograms show high-frequency restoration without over-amplification. 
+      The waveforms show compression is working (reduced crest factor). The metrics confirm no clipping.
+    </p>
+
+    <div class="note">
+      The system isn't perfect — VAD sometimes misclassifies transient sounds as noise, and the 
+      simplified NAL-NL2 doesn't account for bilateral fitting or age-based corrections. But it 
+      demonstrates the core principles that make real hearing aids work.
+    </div>
+
+    <h3>Visual Results</h3>
+
+    <p><strong>Spectrogram Comparison:</strong></p>
+    <img src="../images/ampiear/results_ampiear/postprocessing_spectrogram.png" alt="Before and after spectrogram showing frequency restoration">
+    <p style="text-align: center; font-size: 0.9em; color: #666;">
+      High-frequency content (2–8 kHz) is restored without over-amplification of low frequencies.
+    </p>
+
+    <p><strong>Waveform Analysis:</strong></p>
+    <img src="../images/ampiear/results_ampiear/postprocessing_full_waveform.png" alt="Full waveform before and after processing">
+    <p style="text-align: center; font-size: 0.9em; color: #666;">
+      Reduced crest factor indicates compression is working. No clipping in output signal.
+    </p>
+
+    <p><strong>Soft Limiting Characteristic:</strong></p>
+    <img src="../images/ampiear/results_ampiear/soft_limiting_curves.png" alt="Soft limiting transfer function">
+    <p style="text-align: center; font-size: 0.9em; color: #666;">
+      Tanh limiter provides smooth saturation, preventing harsh clipping artifacts.
+    </p>
+
+    <p><strong>WDRC Compression Curves:</strong></p>
+    <img src="../images/ampiear/results_ampiear/compression_curves.png" alt="WDRC input/output characteristics">
+    <p style="text-align: center; font-size: 0.9em; color: #666;">
+      Level-dependent gain with soft knee transition at 50 dB threshold.
+    </p>
+
+    <p>
+      For complete diagnostic plots including per-band noise reduction analysis, 
+      filter bank responses, and envelope detector behavior, see the full 
+      <a href="https://github.com/cigi10/ampiear" target="_blank">results directory on GitHub</a>.
+    </p>
+
+    <hr>
+
+    <h2>Reflections</h2>
+
+    <p>Building this clarified how tightly coupled the blocks are:</p>
+
+    <ul>
+      <li>WDRC attack time affects how aggressive noise reduction can be</li>
+      <li>Band edges affect how well NAL-NL2 maps to the audiogram</li>
+      <li>STFT overlap affects whether limiting introduces artifacts</li>
+      <li>Pre-emphasis affects whether high-frequency noise gets over-amplified</li>
+    </ul>
+
+    <p>
+      The biggest surprise: how much of the "intelligence" in hearing aids is careful parameter tuning. 
+      The algorithms are well-understood (Wiener filtering is from 1949, WDRC from the 1980s). 
+      The hard part is making them work together smoothly.
+    </p>
+
+    <hr>
+
+    <h2>Future Extensions</h2>
+
+    <ul>
+      <li>Adaptive per-band compression ratios based on input statistics</li>
+      <li>Better psychoacoustic loudness models (e.g., Moore-Glasberg)</li>
+      <li>Neural noise suppression (but keeping it explainable)</li>
+      <li>Real-time streaming implementation (current version is batch)</li>
+    </ul>
+
+    <hr>
+
+    <h2>Mathematical Appendix</h2>
+
+    <p>Complete list of formulas used in this pipeline:</p>
+
+    <h3>Pre-Processing</h3>
+    <div class="equation-block">
+      <p><strong>DC removal (1st-order Butterworth HPF):</strong></p>
+      $$H(s) = \frac{s}{s + \omega_c}, \quad \omega_c = 2\pi \cdot 20 \text{ rad/s}$$
+      
+      <p><strong>Pre-emphasis:</strong></p>
+      $$y[n] = x[n] - 0.97 \cdot x[n-1]$$
+    </div>
+
+    <h3>STFT</h3>
+    <div class="equation-block">
+      <p><strong>Forward transform:</strong></p>
+      $$X(k, m) = \sum_{n=0}^{N-1} x[n + mH] \cdot w[n] \cdot e^{-j2\pi kn/N}$$
+      
+      <p><strong>Inverse transform:</strong></p>
+      $$x[n] = \frac{1}{N} \sum_{m} \sum_{k=0}^{N-1} X(k, m) \cdot e^{j2\pi kn/N} \cdot w[n - mH]$$
+    </div>
+
+    <h3>Band Splitting</h3>
+    <div class="equation-block">
+      $$k_{\text{low}} = \left\lfloor \frac{f_{\text{low}} \cdot N_{FFT}}{f_s} \right\rceil, \quad
+      k_{\text{high}} = \left\lfloor \frac{f_{\text{high}} \cdot N_{FFT}}{f_s} \right\rceil$$
+      $$X_{\text{band}}(k, m) = X(k, m) \text{ for } k \in [k_{\text{low}}, k_{\text{high}}]$$
+    </div>
+
+    <h3>Noise Reduction</h3>
+    <div class="equation-block">
+      <p><strong>Noise power estimation:</strong></p>
+      $$P_n(f) = \frac{1}{M} \sum_{m \in \text{VAD}=0} |X(f, m)|^2$$
+      
+      <p><strong>Signal power:</strong></p>
+      $$P_s(f, m) = \max(|X(f, m)|^2 - P_n(f), 0)$$
+      
+      <p><strong>Wiener gain:</strong></p>
+      $$G(f, m) = \frac{\text{SNR}(f, m)}{\text{SNR}(f, m) + 1}, \quad \text{SNR} = \frac{P_s(f, m)}{P_n(f)}$$
+    </div>
+
+    <h3>NAL-NL2 Gain</h3>
+<div class="equation-block">
+  <p><strong>Band hearing loss:</strong></p>
+  $$f_{\text{center}} = \frac{f_{\text{low}} + f_{\text{high}}}{2}$$
+  $$\text{HL}_k = \text{interp}(f_{\text{center}}, \text{audiogram})$$
+  
+  <p><strong>Input level estimation:</strong></p>
+  $$L_{\text{in}} = 65 + 20 \log_{10}(\text{RMS}_{\text{band}})$$
+  
+  <p><strong>Insertion gain:</strong></p>
+  $$G_k = 0.5 \cdot \text{HL}_k - \frac{L_{\text{in}} - 65}{\text{CR}}$$
+</div>
+
+<h3>WDRC Compression</h3>
+<div class="equation-block">
+  <p><strong>Linear region (below threshold):</strong></p>
+  $$G_{\text{reduction}} = 0 \text{ dB}$$
+  
+  <p><strong>Compressed region (above threshold):</strong></p>
+  $$G_{\text{reduction}} = (L_{\text{in}} - T) \cdot \left(1 - \frac{1}{\text{CR}}\right)$$
+  
+  <p><strong>Soft knee (transition region):</strong></p>
+  $$G_{\text{reduction}} = \frac{(L_{\text{in}} - T + W/2)^2}{2W} \cdot \left(1 - \frac{1}{\text{CR}}\right)$$
+  
+  <p><strong>Envelope detector:</strong></p>
+  $$\alpha_{\text{attack}} = 1 - e^{-1/(t_{\text{attack}} \cdot f_s/1000)}$$
+  $$\alpha_{\text{release}} = 1 - e^{-1/(t_{\text{release}} \cdot f_s/1000)}$$
+</div>
+
+<h3>Post-Processing</h3>
+<div class="equation-block">
+  <p><strong>Soft limiting:</strong></p>
+  $$y[n] = \tanh(g \cdot x[n])$$
+  
+  <p><strong>Normalization:</strong></p>
+  $$y[n] = \frac{10^{-3/20} \cdot 0.9}{\max(|x[n]|)} \cdot x[n]$$
+</div>
+
+
+
+</main>
+
+
+<footer>
+<div class="container"> ∞︎︎ prachi</div>
+</footer>
+</body>
+</html>

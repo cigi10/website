@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>photos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/main.css">
+<link rel="stylesheet" href="css/photos.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+
+<body>
+<header>
+<div class="container">
+<nav>
+<div class="links">
+<a href="index.html">/home</a>
+<a href="photos.html">/photos</a>
+<a href="projects.html">/projects</a>
+</div>
+<div class="social-links">
+<a href="https://github.com/cigi10" target="_blank" aria-label="GitHub" title="GitHub">
+<i class="fab fa-github"></i>
+</a>
+<a href="https://in.linkedin.com/in/prachi-gore-604416294" target="_blank" aria-label="LinkedIn" title="LinkedIn">
+<i class="fab fa-linkedin-in"></i>
+</a>
+<a href="mailto:you@example.com" aria-label="Email" title="Email">
+<i class="fas fa-envelope"></i>
+</a>
+</div>
+</nav>
+</div>
+</header>
+
+<main>
+<div class="container">
+<h1>/photos</h1>
+
+</div>
+
+<div class="photo-grid" id="photoGrid">
+</div>
+</main>
+
+<footer>
+<div class="container"> ∞︎︎ prachi</div>
+</footer>
+
+<script>
+const photos = [
+  { file: 'brownie_homemade.jpg', caption: 'homemade brownies' },
+  { file: 'burj_khalifa.jpg', caption: 'burj khalifa' },
+  { file: 'cigi.jpg', caption: 'cigi campus' },
+  { file: 'coffee_phone_wallpaper.jpg', caption: 'coffee aesthetic' },
+  { file: 'hole_in_the_wall.jpg', caption: 'hole in the wall' },
+  { file: 'jhol_momo_bameys_gastro_bar.jpg', caption: 'jhol momo' },
+  { file: 'londoneye.jpg', caption: 'london eye' },
+  { file: 'lotus_stem_bier_library.jpg', caption: 'lotus stem' },
+  { file: 'mandala_art.jpg', caption: 'mandala art' },
+  { file: 'milano.jpg', caption: 'milano streets' },
+  { file: 'misal_pav.jpg', caption: 'misal pav' },
+  { file: 'pixel_art_friend.jpg', caption: 'pixel friend' },
+  { file: 'rowlet_pixel_art.jpg', caption: 'rowlet pixel' },
+  { file: 'scenery1.jpg', caption: 'mountain view' },
+  { file: 'scenery2.jpg', caption: 'lake serenity' },
+  { file: 'sequin_art.jpg', caption: 'sequin patterns' },
+  { file: 'sinonna_pizza.jpg', caption: 'sinonna pizza' },
+  { file: 'std_cell.jpg', caption: 'standard cell' },
+  { file: 'suku_ramen.jpg', caption: 'suku ramen' },
+  { file: 'switz.jpg', caption: 'swiss alps' },
+  { file: 'thatte_idli.jpg', caption: 'thatte idli' },
+  { file: 'thupka_bameys_gastro_bar.jpg', caption: 'thukpa bowl' },
+  { file: 'train_art.jpg', caption: 'train graffiti' },
+  { file: 'vlsid_2025_collage.jpg', caption: 'vlsid 2025' }
+];
+
+function loadPhotos() {
+  const grid = document.getElementById('photoGrid');
+  grid.innerHTML = ''; // Clear grid
+  
+  // Shuffle photos randomly
+  const shuffledPhotos = [...photos].sort(() => Math.random() - 0.5);
+  
+  shuffledPhotos.forEach(photo => {
+    const photoItem = document.createElement('div');
+    photoItem.className = 'photo-item';
+    photoItem.innerHTML = `
+      <img src="images/photos/${photo.file}" alt="${photo.caption}" class="photo-img" loading="lazy">
+      <div class="photo-caption">${photo.caption}</div>
+    `;
+    grid.appendChild(photoItem);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadPhotos);
+</script>
+
+</body>
+</html>
