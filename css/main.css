@@ -489,3 +489,34 @@ ul li a {
   display: block;
   margin-top: 0.25rem;
 }
+
+.resume-cta {
+  margin: 2rem 0;
+}
+
+.resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #e2a9f1;
+  color: #000000 !important;
+  border: 2px solid #e2a9f1;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.resume-btn:hover {
+  background: transparent;
+  color: #e2a9f1 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(226, 169, 241, 0.3);
+}
+
+.resume-btn i {
+  font-size: 1.1rem;
+}
