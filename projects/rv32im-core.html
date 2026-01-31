@@ -175,7 +175,7 @@ href="https://webneko.net">Neko</a></h1>
     </ul>
 
     <p>
-      Getting these bit positions wrong leads to subtle bugs where instructions execute but compute wrong addresses or offsets. I spent hours debugging a JAL instruction that was jumping to the wrong location because bit 20 was in the wrong position.
+        Getting these bit positions wrong leads to subtle bugs where instructions execute but compute wrong addresses or offsets. I spent hours debugging a JAL instruction that was jumping to the wrong location because bit 20 was in the wrong position. The instruction would decode, the PC would update, but it would jump to some random uninitialized memory location and crash. I stared at waveforms for way too long before realizing the immediate calculation was off by one bit. J-type encoding puts bit 20 in position inst[31], and I had it in inst[30]. One bit wrong, entire instruction broken.
     </p>
 
     <h3>M Extension Implementation</h3>
@@ -325,17 +325,15 @@ immem_block[2] = 32'hFFDFF06F;   // jal x0, -4        (jump back to addr 4)</cod
       I built a separate testbench for this core (see my PicoRV32 verification project), but the synthesis success itself is a good sanity check—at least the RTL is structurally sound.
     </p>
 
-    <h2>What I Learned</h2>
+  <h2>Implementation Details That Mattered</h2>
 
-    <p><strong>Instruction encoding is more complex than it looks.</strong> RISC-V's immediate packing scheme seems arbitrary until you realize it's optimized for decoder simplicity. Critical bits share positions across instruction formats.</p>
+<p>Immediate encoding requires careful bit extraction. I-type uses bits [31:20] directly, but J-type scatters them across {inst[31], inst[19:12], inst[20], inst[30:21]}. The debugging session where a JAL jumped to the wrong address taught me to double-check the bit positions against the spec—one bit in the wrong position breaks the entire instruction.</p>
 
-    <p><strong>Hardware multiplication is cheap.</strong> Modern FPGAs have dedicated multipliers. Using them is essentially free compared to LUTs. Don't avoid multiplication in hardware—embrace it.</p>
+<p>FPGA multipliers are essentially free. DSP48 blocks multiply 18×25 bits in one cycle. Vivado infers them automatically when you write <code>a * b</code>. The synthesis report showed 12 DSP blocks for the M extension—multiple instances cascaded for 32×32 multiplication. Don't avoid multiplication in hardware.</p>
 
-    <p><strong>Single-cycle designs waste time.</strong> When an ADD instruction completes in 2ns but a LOAD takes 10ns, you're wasting 8ns on every ADD. Pipelining amortizes this cost. But for learning? Single-cycle is perfect.</p>
+<p>Single-cycle is slow but conceptually simple. Every instruction takes as long as the slowest one (usually memory access). An ADD that could finish in 2ns waits around for 10ns because a LOAD needs that much time. You waste cycles on fast operations. Pipelining fixes this by overlapping instructions, but then you deal with hazards, forwarding, and stalls. For learning processor architecture, single-cycle is perfect. For performance, it's terrible.</p>
 
-    <p><strong>Synthesis tools are smart.</strong> Vivado automatically inferred Block RAM for memories, DSP blocks for multipliers, and optimized away unused logic. You write behavioral SystemVerilog, the tools figure out the hardware mapping.</p>
-
-    <p><strong>Debugging is iterative.</strong> The first synthesis run had critical warnings about internal drivers on clock and reset signals. The second run had uninitialized instruction memory. The third run succeeded. Each error teaches you something about what the tools expect.</p>
+<p>Synthesis tools optimize aggressively. Vivado inferred Block RAM for memories, DSP blocks for multipliers, and removed unused logic. I wrote behavioral SystemVerilog and the synthesizer mapped it to hardware primitives. First synthesis had warnings about multiple drivers. Second run flagged uninitialized memory. Third worked. Each error clarified what the tools expected.</p>
 
     <h2>Limitations and Future Work</h2>
 
@@ -379,21 +377,17 @@ immem_block[2] = 32'hFFDFF06F;   // jal x0, -4        (jump back to addr 4)</cod
 
     <h2>Reflections</h2>
 
-    <p>
-      Building a CPU from scratch is one of those projects that sounds impossible until you actually do it. The RISC-V ISA specification is only 145 pages. The instruction formats fit on one page. The control logic for a single-cycle implementation is straightforward.
-    </p>
+<p>
+  What makes processor implementation challenging isn't conceptual complexity—it's attention to detail. Getting immediate encodings right. Handling x0 correctly. Making sure branch targets compute properly. Synthesizing cleanly without warnings.
+</p>
 
-    <p>
-      What makes it challenging isn't conceptual complexity—it's attention to detail. Getting immediate encodings right. Handling x0 correctly. Making sure branch targets compute properly. Synthesizing cleanly without warnings.
-    </p>
+<p>
+  But once it works—once you program the FPGA and see those LEDs increment because your handwritten SystemVerilog is executing RISC-V instructions on real hardware—the effort is worth it.
+</p>
 
-    <p>
-      But once it works—once you program the FPGA and see those LEDs increment because your handwritten SystemVerilog is executing RISC-V instructions on real hardware—the effort is worth it.
-    </p>
-
-    <p>
-      Processors aren't magic. They're just state machines with carefully designed control flow. If you understand digital logic and read the ISA spec, you can build one.
-    </p>
+<p>
+  Processors aren't magic. They're just state machines with carefully designed control flow. If you understand digital logic and read the ISA spec, you can build one.
+</p>
 
     <hr style="margin: 3em 0; opacity: 0.3;">
 

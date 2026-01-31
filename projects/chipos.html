@@ -181,15 +181,15 @@ href="https://webneko.net">Neko</a></h1>
         The UART controller is 16550-compatible—a classic design from the 1980s still used in embedded systems today.
       </p>
 
-      <h2>What I Learned</h2>
+     <h2>Things I Figured Out While Building This</h2>
 
-      <p><strong>I/O dominates performance.</strong> The UART runs at 9600 baud—orders of magnitude slower than the CPU. Serial I/O is the real bottleneck, not any algorithm optimization. Understanding where the actual constraints are changes how you think about performance.</p>
+<p>The UART is absurdly slow. 9600 baud means the CPU sits idle most of the time waiting for serial I/O. I spent way too long optimizing the memory allocator before realizing the bottleneck was hardware, not software. Understanding where the real constraints are changes how you approach optimization.</p>
 
-      <p><strong>Simplicity wins.</strong> First-fit allocation is straightforward and works well for this use case. Simple code is easier to debug and often faster in practice than theoretically optimal solutions with more complexity.</p>
+<p>First-fit allocation just works. I almost implemented best-fit because it's theoretically better for fragmentation, but the added complexity wasn't worth it for a 1MB heap. Simpler code meant fewer bugs, and in practice first-fit performed fine.</p>
 
-      <p><strong>The standard library does more than you think.</strong> Implementing <code>strcmp()</code>, <code>strlen()</code>, and <code>memcpy()</code> from scratch gives you a new appreciation for edge cases and buffer management. These "simple" functions handle a lot of corner cases most people never think about.</p>
+<p>Writing <code>strcmp()</code> from scratch is humbling. You realize how many edge cases the standard library handles that you never think about—null pointers, zero-length strings, buffer overruns. I have a new respect for libc maintainers after implementing these "simple" functions.</p>
 
-      <p><strong>Hardware constraints are real.</strong> RISC-V requires aligned memory access—unaligned pointers trigger faults immediately. There's no debugger safety net on bare metal. You learn to be careful because the hardware won't forgive mistakes.</p>
+<p>RISC-V doesn't forgive mistakes. Unaligned memory access triggers an immediate fault. There's no debugger to catch you on bare metal. You learn to be paranoid about pointer arithmetic because the hardware won't save you.</p>
 
       <h2>Try It Yourself</h2>
 

@@ -72,10 +72,7 @@ href="https://webneko.net">Neko</a></h1>
         DPR divides the FPGA into two regions: a <strong>static region</strong> that never changes, and a <strong>reconfigurable partition</strong> that can be swapped at runtime. Load a tiny partial bitstream (492KB instead of 15MB), wait 1.23 milliseconds, and you've got different functionality—while the static region kept running the whole time.
       </p>
 
-      <p><strong>The Promise:</strong> One FPGA, multiple functions, runtime switching.</p>
-
-      <p><strong>The Question:</strong> What does it actually cost?</p>
-
+<p>I ran this experiment to answer a specific question: does Dynamic Partial Reconfiguration actually save FPGA resources, or does the overhead cancel out the benefits? The answer depends on what you're measuring.</p>
       <h2>The Experiment</h2>
 
       <p>
@@ -105,9 +102,9 @@ href="https://webneko.net">Neko</a></h1>
       <img src="../images/dpr_matmul/device_dpr.png" alt="DPR implementation device view">
       <p class="caption">DPR design: 929 LUTs with reconfiguration framework</p>
 
-      <p>
-        The DPR design has visible partitioning—you can see the boundary between static and reconfigurable regions. The physical floorplan is more constrained because partition boundaries add routing restrictions.
-      </p>
+     <p>
+  You can literally see the DPR partition boundary in the device view—Vivado draws a box around the reconfigurable region. This constrains routing because signals crossing the boundary need special handling. I expected this to kill timing, but the forced floorplanning actually helped (WNS improved by 9.3× compared to the static 2×2 design).
+</p>
 
       <h2>Resource Usage: The Overhead Question</h2>
 
@@ -376,27 +373,13 @@ Reconfiguration Time:    1.23 milliseconds</code></pre>
         This is why DPR makes sense for this application—you're not just saving 895 LUTs vs 929 LUTs. You're avoiding the superlinear scaling penalty of implementing both sizes simultaneously.
       </p>
 
-      <h2>When to Use DPR</h2>
+<h2>When Does DPR Actually Make Sense?</h2>
 
-      <p><strong> Use DPR when:</strong></p>
-      <ul>
-        <li>You need multiple functions but not simultaneously</li>
-        <li>Runtime switching latency of 1-10ms is acceptable</li>
-        <li>You can tolerate 20-30% power overhead</li>
-        <li>Resource sharing saves meaningful area (>100 LUTs)</li>
-        <li>Your application switches modes less than ~1000×/second</li>
-        <li>Design complexity is worth the flexibility</li>
-      </ul>
+<p>If you need both 2×2 and 3×3 matrix multiply but never at the same time, DPR saves you from implementing both in parallel. The 1.23ms reconfiguration time works for anything slower than real-time packet processing—video frame switching, batch job processing, adaptive algorithm mode changes.</p>
 
-      <p><strong>Avoid DPR when:</strong></p>
-      <ul>
-        <li>You only need one configuration ever</li>
-        <li>Power efficiency is critical (DPR's MMCM is always on)</li>
-        <li>Sub-millisecond switching is required</li>
-        <li>Simpler static design meets requirements</li>
-        <li>Both functions need to run simultaneously</li>
-        <li>Resource savings are minimal (<50 LUTs)</li>
-      </ul>
+<p>But the power cost is real. That MMCM burns 0.098W continuously whether you're reconfiguring or not. For battery-powered devices, that's a problem. The resource overhead is only 3.8%, but you're trading 115mW of continuous power for the flexibility.</p>
+
+<p>Worth it for adaptive systems that genuinely need runtime mode switching. Not worth it if you just need one mode, if power is critical, or if sub-millisecond switching is required. The design complexity has to justify the benefits.</p>
 
       <h2>Bitstream Storage Trade-off</h2>
 
@@ -436,17 +419,15 @@ Reconfiguration Time:    1.23 milliseconds</code></pre>
 
       <h2>What I Learned</h2>
 
-      <p><strong>DPR overhead is mostly power, not area.</strong> The 3.8% resource overhead is negligible. The 23% power penalty from the always-on MMCM is the real cost.</p>
+     <h2>What I Learned</h2>
 
-      <p><strong>Timing can improve with DPR.</strong> Forced floorplanning and reduced runtime congestion can actually help timing closure instead of hurting it.</p>
+<p>The DPR overhead is mostly power, not area. Resource usage went up by only 3.8% (34 LUTs), but total power increased 23% because the MMCM runs continuously. That 0.098W clock management block accounts for 69% of all dynamic power—the reconfigurable logic itself is efficient, but the infrastructure isn't free.</p>
 
-      <p><strong>Partial bitstreams are efficient.</strong> 492 KB is 3.3% of the full bitstream size, which enables sub-millisecond reconfiguration.</p>
+<p>Timing improved with DPR, which I didn't expect. The forced floorplanning from partition boundaries actually helped—WNS was 9.3× better than the 2×2 static design. Constraining placement can lead to better locality and less routing congestion.</p>
 
-      <p><strong>Reconfiguration is fast enough for most applications.</strong> 1.23 ms switching time works for video processing, batch jobs, and adaptive algorithms. It's too slow for packet processing or hard real-time control.</p>
+<p>Partial bitstreams are tiny—492 KB vs 15 MB for the full bitstream. That 3.3% size means you can reconfigure in 1.23 ms, which is fast enough for video frame switching or batch processing but too slow for packet-level decisions or hard real-time control.</p>
 
-      <p><strong>Matrix multiplication scales superlinearly.</strong> Going from 2×2 to 3×3 increased resources by 15.3× for 2.25× more operations—efficiency degrades 6.8× due to interconnect complexity.</p>
-
-      <p><strong>The MMCM is the power killer.</strong> 69% of DPR's dynamic power goes to clock management infrastructure, not the actual reconfigurable logic.</p>
+<p>Matrix multiplication scales superlinearly in hardware. Going from 2×2 (4 mults) to 3×3 (9 mults) should be 2.25× more resources, but it's actually 15.3× more. The accumulation trees and interconnect complexity grow faster than the computation. This is why DPR makes sense here—you avoid that superlinear penalty by only having one configuration active at a time.</p>
 
       <h2>Design Rule Check</h2>
 

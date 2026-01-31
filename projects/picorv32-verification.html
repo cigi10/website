@@ -213,9 +213,9 @@ href="https://webneko.net">Neko</a></h1>
     <p>
       The 93.3% coverage represents 14 instruction types successfully verified through thousands of lines of SystemVerilog. The remaining 7% (JAL) is a known limitation with a documented cause. Shipping a stable, well-documented testbench teaches more than endlessly chasing 100% coverage on an unstable one.
     </p>
-    <p>
-      Functional verification is fundamentally about building confidence that hardware behaves correctly. Coverage metrics quantify that confidence. This testbench provides measurable evidence that the PicoRV32 correctly executes arithmetic, logical, memory, and immediate instructions—the foundation of any processor verification effort.
-    </p>
+<p>
+  Verification is about proving your hardware actually works. Coverage tells you which parts you've tested and which you've ignored. This testbench hit 93.3% instruction coverage—14 out of 15 instruction types verified. The missing 7% is JAL, which I disabled because the immediate encoding kept causing jumps to uninitialized memory and crashing the simulation.
+</p>
 
     <hr style="margin: 3em 0; opacity: 0.3;">
 
