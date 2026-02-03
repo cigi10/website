@@ -34,7 +34,7 @@ href="https://webneko.net">Neko</a></h1>
 
 <main>
 <div class="container">
-<h1>hi, i'm prachi</h1>
+<h1>hi, i'm <span class="shuffle" data-text="prachi">prachi</span></h1>
 
 <p>3rd year ECE. i design hardware and write verification environments.</p>
 
@@ -64,5 +64,67 @@ href="https://webneko.net">Neko</a></h1>
 <footer>
 <div class="container">∞︎︎ prachi</div>
 </footer>
+
+<script>
+// Set effect velocity in ms
+const velocity = 50;
+
+const shuffleElements = document.querySelectorAll('.shuffle');
+
+// Shuffle array function
+const shuffle = function(array) {
+    const o = [...array];
+    for(let j, x, i = o.length; i; j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+    return o;
+};
+
+// Shuffle text function
+const shuffleText = function(element, originalText) {
+    const elementTextArray = originalText.split('');
+    let randomText = [];
+    
+    const repeatShuffle = function(times, index) {
+        if (index == times) {
+            element.textContent = originalText;
+            return;
+        }
+        
+        setTimeout(() => {
+            randomText = shuffle(elementTextArray);
+            // Keep the first 'index' characters in their correct position
+            for (let i = 0; i < index; i++) {
+                randomText[i] = originalText[i];
+            }
+            element.textContent = randomText.join('');
+            index++;
+            repeatShuffle(times, index);
+        }, velocity);
+    };
+    
+    repeatShuffle(originalText.length, 0);
+};
+
+// Add hover event for desktop
+shuffleElements.forEach(element => {
+    element.addEventListener('mouseenter', function() {
+        shuffleText(this, this.getAttribute('data-text'));
+    });
+    
+    // Add click/tap for mobile
+    element.addEventListener('click', function() {
+        shuffleText(this, this.getAttribute('data-text'));
+    });
+});
+
+// Auto-shuffle on page load
+window.addEventListener('load', function() {
+    setTimeout(() => {
+        shuffleElements.forEach(element => {
+            shuffleText(element, element.getAttribute('data-text'));
+        });
+    }, 500);
+});
+</script>
+
 </body>
 </html>

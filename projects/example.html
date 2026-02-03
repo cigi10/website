@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shuffle Letters</title>
+    <style>
+        html, body {
+            box-sizing: border-box;
+            font-size: 12px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: #fff;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        body * {
+            box-sizing: border-box;
+        }
+        h1 {
+            position: absolute;
+            bottom: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ccc;
+        }
+        a.website {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+        a {
+            color: #000;
+            text-decoration: none;
+        }
+        p {
+            color: #888;
+            margin-bottom: 30px;
+        }
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        nav ul li {
+            float: left;
+            margin-right: 50px;
+        }
+        nav ul li:last-child {
+            margin-right: 0;
+        }
+        nav ul li a {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shuffle letters</h1>
+    <p>hover on text to see the effect</p>
+    <nav>
+        <ul>
+            <li>
+                <a class="shuffle" data-original="prachi" data-target="chipra" href="#">prachi</a>
+            </li>
+        </ul>
+    </nav>
+
+    <script>
+        // Set effect velocity in ms
+        const velocity = 50;
+        
+        const shuffleElements = document.querySelectorAll('.shuffle');
+        
+        // Shuffle array function
+        const shuffle = function(array) {
+            const o = [...array];
+            for(let j, x, i = o.length; i; j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+            return o;
+        };
+        
+        // Shuffle text function
+        const shuffleText = function(element, targetText) {
+            const targetTextArray = targetText.split('');
+            let randomText = [];
+            
+            const repeatShuffle = function(times, index) {
+                if (index == times) {
+                    element.textContent = targetText;
+                    return;
+                }
+                
+                setTimeout(() => {
+                    randomText = shuffle(targetTextArray);
+                    // Keep the first 'index' characters in their correct position
+                    for (let i = 0; i < index; i++) {
+                        randomText[i] = targetText[i];
+                    }
+                    element.textContent = randomText.join('');
+                    index++;
+                    repeatShuffle(times, index);
+                }, velocity);
+            };
+            
+            repeatShuffle(targetText.length, 0);
+        };
+        
+        // Add hover event listeners
+        shuffleElements.forEach(element => {
+            element.addEventListener('mouseenter', function() {
+                const targetText = this.getAttribute('data-target');
+                shuffleText(this, targetText);
+            });
+            
+            element.addEventListener('mouseleave', function() {
+                const originalText = this.getAttribute('data-original');
+                shuffleText(this, originalText);
+            });
+        });
+    </script>
+</body>
+</html>
