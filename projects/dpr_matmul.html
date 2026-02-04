@@ -55,7 +55,7 @@ href="https://webneko.net">Neko</a></h1>
 </div>
 
       <p>
-        Most FPGA designs are static—you configure the device once at power-on and it stays that way until you power cycle. Dynamic Partial Reconfiguration (DPR) changes this. You can swap out portions of the design while the rest keeps running.
+        Most FPGA designs are static; you configure the device once at power-on and it stays that way until you power cycle. Dynamic Partial Reconfiguration (DPR) changes this. You can swap out portions of the design while the rest keeps running.
       </p>
 
       <p>
@@ -65,11 +65,11 @@ href="https://webneko.net">Neko</a></h1>
       <h2>What is DPR?</h2>
 
       <p>
-        Traditional FPGA designs are all-or-nothing. Want to change functionality? Power down, load new bitstream, power up. Takes seconds and stops everything.
+        Traditional FPGA designs are all or nothing. Want to change functionality? Power down, load new bitstream, power up. Takes seconds and stops everything.
       </p>
 
       <p>
-        DPR divides the FPGA into two regions: a <strong>static region</strong> that never changes, and a <strong>reconfigurable partition</strong> that can be swapped at runtime. Load a tiny partial bitstream (492KB instead of 15MB), wait 1.23 milliseconds, and you've got different functionality—while the static region kept running the whole time.
+        DPR divides the FPGA into two regions: a <strong>static region</strong> that never changes, and a <strong>reconfigurable partition</strong> that can be swapped at runtime. Load a tiny partial bitstream (492KB instead of 15MB), wait 1.23 milliseconds, and you've got different functionality; while the static region kept running the whole time.
       </p>
 
 <p>I ran this experiment to answer a specific question: does Dynamic Partial Reconfiguration actually save FPGA resources, or does the overhead cancel out the benefits? The answer depends on what you're measuring.</p>
@@ -86,7 +86,7 @@ href="https://webneko.net">Neko</a></h1>
       </ul>
 
       <p>
-        All three target 100 MHz and use lookup-table based matrix multiplication. Same algorithm, same I/O interface, different implementation strategies.
+        All three target 100 MHz and use lookup table based matrix multiplication. Same algorithm, same I/O interface, different implementation strategies.
       </p>
 
       <h2>Implementation Views</h2>
@@ -103,7 +103,7 @@ href="https://webneko.net">Neko</a></h1>
       <p class="caption">DPR design: 929 LUTs with reconfiguration framework</p>
 
      <p>
-  You can literally see the DPR partition boundary in the device view—Vivado draws a box around the reconfigurable region. This constrains routing because signals crossing the boundary need special handling. I expected this to kill timing, but the forced floorplanning actually helped (WNS improved by 9.3× compared to the static 2×2 design).
+  You can literally see the DPR partition boundary in the device view; Vivado draws a box around the reconfigurable region. This constrains routing because signals crossing the boundary need special handling. I expected this to kill timing, but the forced floorplanning actually helped (WNS improved by 9.3× compared to the static 2×2 design).
 </p>
 
       <h2>Resource Usage: The Overhead Question</h2>
@@ -113,7 +113,7 @@ href="https://webneko.net">Neko</a></h1>
       </p>
 
       <p>
-        The DPR design uses <strong>929 LUTs</strong>. That's only +34 LUTs more—a <strong>3.8% overhead</strong> for the reconfiguration infrastructure.
+        The DPR design uses <strong>929 LUTs</strong>. That's only +34 LUTs more; a <strong>3.8% overhead</strong> for the reconfiguration infrastructure.
       </p>
 
       <img src="../images/dpr_matmul/utilization2x2.png" alt="2×2 utilization">
@@ -165,7 +165,7 @@ href="https://webneko.net">Neko</a></h1>
         </tr>
       </table>
 
-      <p><strong>Key Finding:</strong> The DPR framework itself is efficient—only 3.8% overhead. The real costs show up elsewhere.</p>
+      <p><strong>Key Finding:</strong> The DPR framework itself is efficient; only 3.8% overhead. The real costs show up elsewhere.</p>
 
       <h2>Timing: Performance Gain</h2>
 
@@ -301,7 +301,7 @@ href="https://webneko.net">Neko</a></h1>
       </table>
 
       <p>
-        <strong>The MMCM alone costs 0.098W</strong>—that's 69% of all dynamic power. This is the continuous cost of the reconfiguration infrastructure running in the background.
+        <strong>The MMCM alone costs 0.098W</strong>that's 69% of all dynamic power. This is the continuous cost of the reconfiguration infrastructure running in the background.
       </p>
 
       <p>
@@ -370,12 +370,12 @@ Reconfiguration Time:    1.23 milliseconds</code></pre>
       </p>
 
       <p>
-        This is why DPR makes sense for this application—you're not just saving 895 LUTs vs 929 LUTs. You're avoiding the superlinear scaling penalty of implementing both sizes simultaneously.
+        This is why DPR makes sense for this application; you're not just saving 895 LUTs vs 929 LUTs. You're avoiding the superlinear scaling penalty of implementing both sizes simultaneously.
       </p>
 
 <h2>When Does DPR Actually Make Sense?</h2>
 
-<p>If you need both 2×2 and 3×3 matrix multiply but never at the same time, DPR saves you from implementing both in parallel. The 1.23ms reconfiguration time works for anything slower than real-time packet processing—video frame switching, batch job processing, adaptive algorithm mode changes.</p>
+<p>If you need both 2×2 and 3×3 matrix multiply but never at the same time, DPR saves you from implementing both in parallel. The 1.23ms reconfiguration time works for anything slower than real-time packet processing; video frame switching, batch job processing, adaptive algorithm mode changes.</p>
 
 <p>But the power cost is real. That MMCM burns 0.098W continuously whether you're reconfiguring or not. For battery-powered devices, that's a problem. The resource overhead is only 3.8%, but you're trading 115mW of continuous power for the flexibility.</p>
 
@@ -414,27 +414,25 @@ Reconfiguration Time:    1.23 milliseconds</code></pre>
       </p>
 
       <p>
-        But the partial bitstreams are tiny—only 492 KB each, which is 3.3% of the full bitstream. This is why runtime reconfiguration is fast.
+        But the partial bitstreams are tiny -> only 492 KB each, which is 3.3% of the full bitstream. This is why runtime reconfiguration is fast.
       </p>
-
-      <h2>What I Learned</h2>
 
      <h2>What I Learned</h2>
 
-<p>The DPR overhead is mostly power, not area. Resource usage went up by only 3.8% (34 LUTs), but total power increased 23% because the MMCM runs continuously. That 0.098W clock management block accounts for 69% of all dynamic power—the reconfigurable logic itself is efficient, but the infrastructure isn't free.</p>
+<p>The DPR overhead is mostly power, not area. Resource usage went up by only 3.8% (34 LUTs), but total power increased 23% because the MMCM runs continuously. That 0.098W clock management block accounts for 69% of all dynamic power; the reconfigurable logic itself is efficient, but the infrastructure isn't free.</p>
 
-<p>Timing improved with DPR, which I didn't expect. The forced floorplanning from partition boundaries actually helped—WNS was 9.3× better than the 2×2 static design. Constraining placement can lead to better locality and less routing congestion.</p>
+<p>Timing improved with DPR, which I didn't expect. The forced floorplanning from partition boundaries actually helped; WNS was 9.3× better than the 2×2 static design. Constraining placement can lead to better locality and less routing congestion.</p>
 
-<p>Partial bitstreams are tiny—492 KB vs 15 MB for the full bitstream. That 3.3% size means you can reconfigure in 1.23 ms, which is fast enough for video frame switching or batch processing but too slow for packet-level decisions or hard real-time control.</p>
+<p>Partial bitstreams are tiny -> 492 KB vs 15 MB for the full bitstream. That 3.3% size means you can reconfigure in 1.23 ms, which is fast enough for video frame switching or batch processing but too slow for packet-level decisions or hard real-time control.</p>
 
-<p>Matrix multiplication scales superlinearly in hardware. Going from 2×2 (4 mults) to 3×3 (9 mults) should be 2.25× more resources, but it's actually 15.3× more. The accumulation trees and interconnect complexity grow faster than the computation. This is why DPR makes sense here—you avoid that superlinear penalty by only having one configuration active at a time.</p>
+<p>Matrix multiplication scales superlinearly in hardware. Going from 2×2 (4 mults) to 3×3 (9 mults) should be 2.25× more resources, but it's actually 15.3× more. The accumulation trees and interconnect complexity grow faster than the computation. This is why DPR makes sense here; you avoid that superlinear penalty by only having one configuration active at a time.</p>
 
       <h2>Design Rule Check</h2>
 
       <img src="../images/dpr_matmul/drc_dpr.png" alt="DPR DRC check">
 
       <p>
-        The DPR design passed all critical DRC checks with one advisory warning (HDPRA-53) about floorplan constraints. This is expected for DPR designs—the warning confirms that partition boundaries are properly defined.
+        The DPR design passed all critical DRC checks with one advisory warning (HDPRA-53) about floorplan constraints. This is expected for DPR designs; the warning confirms that partition boundaries are properly defined.
       </p>
 
       <h2>Final Thoughts</h2>
