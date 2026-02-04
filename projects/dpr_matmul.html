@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+<meta charset="UTF-8">
+<title>DPR vs Static FPGA: When Runtime Reconfiguration Makes Sense</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<script>NekoType="lucy"</script>
+<h1 id=nl><script src="https://webneko.net/n20171213.js"></script><a 
+href="https://webneko.net">Neko</a></h1>
+
+<header>
+<div class="container">
+<nav>
+<div class="links">
+<a href="../index.html">/home</a>
+<a href="../photos.html">/photos</a>
+<a href="../projects.html">/projects</a>
+</div>
+<div class="social-links">
+<a href="https://github.com/cigi10" target="_blank" aria-label="GitHub" title="GitHub">
+<i class="fab fa-github"></i>
+</a>
+<a href="https://in.linkedin.com/in/prachi-gore-604416294" target="_blank" aria-label="LinkedIn" title="LinkedIn">
+<i class="fab fa-linkedin-in"></i>
+</a>
+<a href="mailto:prachi.dgore@gmail.com" aria-label="Email" title="Email">
+<i class="fas fa-envelope"></i>
+</a>
+</div>
+</nav>
+</div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="blog-content">
+      <h1>/dynamic partial reconfiguration</h1>
+
+      <p style="opacity: 0.7; font-size: 0.95em; margin-bottom: 2em;">
+  <i class="fas fa-calendar"></i> January 2026 &nbsp;|&nbsp;
+  <i class="fas fa-tag"></i> FPGA, Verilog, Dynamic Reconfiguration &nbsp;|&nbsp;
+  <i class="fas fa-clock"></i> 12 min read
+</p>
+
+<div class="note">
+  <strong>TL;DR:</strong> Dynamic Partial Reconfiguration (DPR) lets you swap FPGA functionality at runtime in 1.23 milliseconds. I compared DPR against static designs for 2×2 and 3×3 matrix multiplication on a Xilinx KCU116 board. DPR adds only 3.8% resource overhead but costs 23% more power. The real question: when is runtime flexibility worth the tradeoff?
+</div>
+
+      <p>
+        Most FPGA designs are static—you configure the device once at power-on and it stays that way until you power cycle. Dynamic Partial Reconfiguration (DPR) changes this. You can swap out portions of the design while the rest keeps running.
+      </p>
+
+      <p>
+        I built three implementations of matrix multiplication to understand when DPR actually makes sense: a static 2×2 design, a static 3×3 design, and a DPR design that switches between both at runtime.
+      </p>
+
+      <h2>What is DPR?</h2>
+
+      <p>
+        Traditional FPGA designs are all-or-nothing. Want to change functionality? Power down, load new bitstream, power up. Takes seconds and stops everything.
+      </p>
+
+      <p>
+        DPR divides the FPGA into two regions: a <strong>static region</strong> that never changes, and a <strong>reconfigurable partition</strong> that can be swapped at runtime. Load a tiny partial bitstream (492KB instead of 15MB), wait 1.23 milliseconds, and you've got different functionality—while the static region kept running the whole time.
+      </p>
+
+<p>I ran this experiment to answer a specific question: does Dynamic Partial Reconfiguration actually save FPGA resources, or does the overhead cancel out the benefits? The answer depends on what you're measuring.</p>
+      <h2>The Experiment</h2>
+
+      <p>
+        I implemented three designs on a Xilinx KCU116 (Kintex UltraScale+) development board:
+      </p>
+
+      <ul>
+        <li><strong>2×2 Matrix Multiplication (Static)</strong> — Baseline implementation, always does 2×2</li>
+        <li><strong>3×3 Matrix Multiplication (Static)</strong> — Baseline implementation, always does 3×3</li>
+        <li><strong>DPR Design (Reconfigurable)</strong> — Switches between 2×2 and 3×3 at runtime</li>
+      </ul>
+
+      <p>
+        All three target 100 MHz and use lookup-table based matrix multiplication. Same algorithm, same I/O interface, different implementation strategies.
+      </p>
+
+      <h2>Implementation Views</h2>
+
+      <p>Here's what each design looks like on the FPGA fabric:</p>
+
+      <img src="../images/dpr_matmul/device2x2.png" alt="2×2 static implementation device view">
+      <p class="caption">2×2 static design: 55 LUTs, minimal footprint</p>
+
+      <img src="../images/dpr_matmul/device3x3.png" alt="3×3 static implementation device view">
+      <p class="caption">3×3 static design: 840 LUTs, denser logic placement</p>
+
+      <img src="../images/dpr_matmul/device_dpr.png" alt="DPR implementation device view">
+      <p class="caption">DPR design: 929 LUTs with reconfiguration framework</p>
+
+     <p>
+  You can literally see the DPR partition boundary in the device view—Vivado draws a box around the reconfigurable region. This constrains routing because signals crossing the boundary need special handling. I expected this to kill timing, but the forced floorplanning actually helped (WNS improved by 9.3× compared to the static 2×2 design).
+</p>
+
+      <h2>Resource Usage: The Overhead Question</h2>
+
+      <p>
+        If you need both 2×2 and 3×3 functionality with traditional static designs, you'd need two separate FPGAs or a design that implements both simultaneously. That would cost 55 + 840 = <strong>895 LUTs</strong>.
+      </p>
+
+      <p>
+        The DPR design uses <strong>929 LUTs</strong>. That's only +34 LUTs more—a <strong>3.8% overhead</strong> for the reconfiguration infrastructure.
+      </p>
+
+      <img src="../images/dpr_matmul/utilization2x2.png" alt="2×2 utilization">
+      <img src="../images/dpr_matmul/utilization3x3.png" alt="3×3 utilization">
+      <img src="../images/dpr_matmul/utilization_dpr.png" alt="DPR utilization">
+
+      <table>
+        <tr>
+          <th>Resource</th>
+          <th>2×2 Static</th>
+          <th>3×3 Static</th>
+          <th>DPR</th>
+          <th>Notes</th>
+        </tr>
+        <tr>
+          <td><strong>LUTs</strong></td>
+          <td>55 (0.03%)</td>
+          <td>840 (0.39%)</td>
+          <td>929 (0.43%)</td>
+          <td>DPR = both + 34 overhead</td>
+        </tr>
+        <tr>
+          <td><strong>Flip-Flops</strong></td>
+          <td>4</td>
+          <td>8</td>
+          <td>67</td>
+          <td>DPR needs state management</td>
+        </tr>
+        <tr>
+          <td><strong>CARRY8</strong></td>
+          <td>6 (0.02%)</td>
+          <td>81 (0.30%)</td>
+          <td>92 (0.34%)</td>
+          <td>Both + 5 for counter</td>
+        </tr>
+        <tr>
+          <td><strong>F7/F8 Muxes</strong></td>
+          <td>0</td>
+          <td>18</td>
+          <td>15</td>
+          <td>DPR optimizes differently</td>
+        </tr>
+        <tr>
+          <td><strong>MMCM</strong></td>
+          <td>0</td>
+          <td>0</td>
+          <td>1 (25%)</td>
+          <td>Clock management</td>
+        </tr>
+      </table>
+
+      <p><strong>Key Finding:</strong> The DPR framework itself is efficient—only 3.8% overhead. The real costs show up elsewhere.</p>
+
+      <h2>Timing: Performance Gain</h2>
+
+      <p>
+        DPR designs usually have <em>worse</em> timing because partition boundaries constrain routing. I expected the DPR design to be slower.
+      </p>
+
+      <p>
+        It was <strong>9.3× faster</strong>.
+      </p>
+
+      <img src="../images/dpr_matmul/timing_summary2x2.png" alt="2×2 timing">
+      <img src="../images/dpr_matmul/timing_summary3x3.png" alt="3×3 timing">
+      <img src="../images/dpr_matmul/timing_summary_dpr.png" alt="DPR timing">
+
+      <table>
+        <tr>
+          <th>Design</th>
+          <th>WNS (Slack)</th>
+          <th>Max Frequency</th>
+          <th>Notes</th>
+        </tr>
+        <tr>
+          <td>2×2 Static</td>
+          <td>+0.605 ns</td>
+          <td>~166 MHz</td>
+          <td>Baseline</td>
+        </tr>
+        <tr>
+          <td>3×3 Static</td>
+          <td>+1.565 ns</td>
+          <td>~164 MHz</td>
+          <td>2.6× better than 2×2</td>
+        </tr>
+        <tr>
+          <td><strong>DPR</strong></td>
+          <td><strong>+5.626 ns</strong></td>
+          <td><strong>~277 MHz</strong></td>
+          <td><strong>9.3× better than 2×2</strong></td>
+        </tr>
+      </table>
+
+      <p>
+        The DPR design can run 67% faster than the static designs. Why?
+      </p>
+
+      <ul>
+        <li><strong>Forced floorplanning:</strong> DPR requires explicit partition placement, which can lead to better locality</li>
+        <li><strong>Less runtime congestion:</strong> Only one configuration is active at a time</li>
+        <li><strong>Aggressive DFX optimization:</strong> Vivado's DFX flow applies more aggressive place-and-route</li>
+      </ul>
+
+      <p>
+        This was the biggest surprise. DPR's constraints actually <em>helped</em> timing instead of hurting it.
+      </p>
+
+      <h2>Power: The Real Cost</h2>
+
+      <p>
+        This is where DPR pays the price.
+      </p>
+
+      <img src="../images/dpr_matmul/power_analysis2x2.png" alt="2×2 power">
+      <img src="../images/dpr_matmul/power_analysis3x3.png" alt="3×3 power">
+      <img src="../images/dpr_matmul/power_analysis_dpr.png" alt="DPR power">
+
+      <table>
+        <tr>
+          <th>Metric</th>
+          <th>2×2</th>
+          <th>3×3</th>
+          <th>DPR</th>
+          <th>DPR vs 3×3</th>
+        </tr>
+        <tr>
+          <td><strong>Total Power</strong></td>
+          <td>0.490 W</td>
+          <td>0.501 W</td>
+          <td>0.616 W</td>
+          <td><strong>+23%</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Dynamic Power</strong></td>
+          <td>0.017 W</td>
+          <td>0.028 W</td>
+          <td>0.142 W</td>
+          <td><strong>+407%</strong></td>
+        </tr>
+        <tr>
+          <td>Static Power</td>
+          <td>0.473 W</td>
+          <td>0.473 W</td>
+          <td>0.474 W</td>
+          <td>+0.2%</td>
+        </tr>
+      </table>
+
+      <p>
+        DPR adds <strong>23% to total power</strong> and <strong>407% to dynamic power</strong> compared to the 3×3 static design. Where does it go?
+      </p>
+
+      <table>
+        <tr>
+          <th>Component</th>
+          <th>Power</th>
+          <th>% of Dynamic</th>
+        </tr>
+        <tr>
+          <td><strong>MMCM (Clock Management)</strong></td>
+          <td>0.098 W</td>
+          <td><strong>69%</strong></td>
+        </tr>
+        <tr>
+          <td>I/O</td>
+          <td>0.031 W</td>
+          <td>22%</td>
+        </tr>
+        <tr>
+          <td>CLB Logic</td>
+          <td>0.006 W</td>
+          <td>4%</td>
+        </tr>
+        <tr>
+          <td>Signals</td>
+          <td>0.005 W</td>
+          <td>3%</td>
+        </tr>
+        <tr>
+          <td>Clocks</td>
+          <td>0.002 W</td>
+          <td>1%</td>
+        </tr>
+      </table>
+
+      <p>
+        <strong>The MMCM alone costs 0.098W</strong>—that's 69% of all dynamic power. This is the continuous cost of the reconfiguration infrastructure running in the background.
+      </p>
+
+      <p>
+        The actual reconfigurable logic is power-efficient. The overhead is the always-on clock management circuitry needed to support runtime reconfiguration.
+      </p>
+
+      <h2>Reconfiguration Performance</h2>
+
+      <p>
+        How fast can you actually switch between 2×2 and 3×3?
+      </p>
+
+      <pre><code>Partial Bitstream Size:  492 KB (both configs)
+PCAP Configuration Rate: 400 MB/s
+Reconfiguration Time:    1.23 milliseconds</code></pre>
+
+      <p>
+        <strong>1.23 ms to completely swap functionality.</strong> That's 123,000 clock cycles at 100 MHz.
+      </p>
+
+      <p>
+        Is that fast? Depends on your application:
+      </p>
+
+      <ul>
+        <li> Fast enough for video processing (frame-level switching)</li>
+        <li> Fast enough for batch processing (job-level switching)</li>
+        <li> Fast enough for adaptive algorithms (mode switching)</li>
+        <li> Too slow for packet processing (sub-microsecond required)</li>
+        <li> Too slow for real-time control (deterministic nanosecond timing)</li>
+      </ul>
+
+      <p>
+        You could switch configurations <strong>~813 times per second</strong> if needed. The partial bitstream is only 3.3% the size of the full bitstream (492 KB vs 15 MB), which is why reconfiguration is so fast.
+      </p>
+
+      <h2>The Matrix Multiplication Scaling Problem</h2>
+
+      <p>
+        One unexpected finding: matrix multiplication scales <em>superlinearly</em> in FPGA resources.
+      </p>
+
+      <table>
+        <tr>
+          <th>Design</th>
+          <th>Multiplications</th>
+          <th>LUTs</th>
+          <th>LUTs per Mult</th>
+        </tr>
+        <tr>
+          <td>2×2</td>
+          <td>4</td>
+          <td>55</td>
+          <td>13.75</td>
+        </tr>
+        <tr>
+          <td>3×3</td>
+          <td>9</td>
+          <td>840</td>
+          <td>93.3</td>
+        </tr>
+      </table>
+
+      <p>
+        Going from 2×2 to 3×3 multiplies operations by 2.25× but multiplies resource usage by <strong>15.3×</strong>. Efficiency degrades by 6.8× because the accumulation tree and interconnect complexity grows faster than the computation itself.
+      </p>
+
+      <p>
+        This is why DPR makes sense for this application—you're not just saving 895 LUTs vs 929 LUTs. You're avoiding the superlinear scaling penalty of implementing both sizes simultaneously.
+      </p>
+
+<h2>When Does DPR Actually Make Sense?</h2>
+
+<p>If you need both 2×2 and 3×3 matrix multiply but never at the same time, DPR saves you from implementing both in parallel. The 1.23ms reconfiguration time works for anything slower than real-time packet processing—video frame switching, batch job processing, adaptive algorithm mode changes.</p>
+
+<p>But the power cost is real. That MMCM burns 0.098W continuously whether you're reconfiguring or not. For battery-powered devices, that's a problem. The resource overhead is only 3.8%, but you're trading 115mW of continuous power for the flexibility.</p>
+
+<p>Worth it for adaptive systems that genuinely need runtime mode switching. Not worth it if you just need one mode, if power is critical, or if sub-millisecond switching is required. The design complexity has to justify the benefits.</p>
+
+      <h2>Bitstream Storage Trade-off</h2>
+
+      <table>
+        <tr>
+          <th>Design</th>
+          <th>Full Bitstream</th>
+          <th>Partial Bitstream</th>
+          <th>Total Storage</th>
+        </tr>
+        <tr>
+          <td>2×2 Static</td>
+          <td>3.8 MB</td>
+          <td>N/A</td>
+          <td rowspan="2">7.7 MB (both)</td>
+        </tr>
+        <tr>
+          <td>3×3 Static</td>
+          <td>3.9 MB</td>
+          <td>N/A</td>
+        </tr>
+        <tr>
+          <td><strong>DPR</strong></td>
+          <td><strong>15 MB</strong></td>
+          <td><strong>492 KB × 2</strong></td>
+          <td><strong>~16 MB</strong></td>
+        </tr>
+      </table>
+
+      <p>
+        The DPR full bitstream is <strong>4× larger</strong> (15 MB vs 3.8-3.9 MB) because it includes the reconfiguration framework. If you need both configurations available, DPR requires <strong>2.1× more storage</strong> (16 MB vs 7.7 MB).
+      </p>
+
+      <p>
+        But the partial bitstreams are tiny—only 492 KB each, which is 3.3% of the full bitstream. This is why runtime reconfiguration is fast.
+      </p>
+
+      <h2>What I Learned</h2>
+
+     <h2>What I Learned</h2>
+
+<p>The DPR overhead is mostly power, not area. Resource usage went up by only 3.8% (34 LUTs), but total power increased 23% because the MMCM runs continuously. That 0.098W clock management block accounts for 69% of all dynamic power—the reconfigurable logic itself is efficient, but the infrastructure isn't free.</p>
+
+<p>Timing improved with DPR, which I didn't expect. The forced floorplanning from partition boundaries actually helped—WNS was 9.3× better than the 2×2 static design. Constraining placement can lead to better locality and less routing congestion.</p>
+
+<p>Partial bitstreams are tiny—492 KB vs 15 MB for the full bitstream. That 3.3% size means you can reconfigure in 1.23 ms, which is fast enough for video frame switching or batch processing but too slow for packet-level decisions or hard real-time control.</p>
+
+<p>Matrix multiplication scales superlinearly in hardware. Going from 2×2 (4 mults) to 3×3 (9 mults) should be 2.25× more resources, but it's actually 15.3× more. The accumulation trees and interconnect complexity grow faster than the computation. This is why DPR makes sense here—you avoid that superlinear penalty by only having one configuration active at a time.</p>
+
+      <h2>Design Rule Check</h2>
+
+      <img src="../images/dpr_matmul/drc_dpr.png" alt="DPR DRC check">
+
+      <p>
+        The DPR design passed all critical DRC checks with one advisory warning (HDPRA-53) about floorplan constraints. This is expected for DPR designs—the warning confirms that partition boundaries are properly defined.
+      </p>
+
+      <h2>Final Thoughts</h2>
+
+      <p>
+        Dynamic Partial Reconfiguration is a powerful technique when you need runtime flexibility and can accept the power trade-off. For this matrix multiplication case study, DPR provided:
+      </p>
+
+      <ul>
+        <li>3.8% resource overhead (929 vs 895 LUTs)</li>
+        <li> 1.23 ms reconfiguration time</li>
+        <li> 1.7× higher maximum frequency</li>
+        <li> 23% power penalty</li>
+        <li> 2.1× more bitstream storage</li>
+      </ul>
+
+      <p>
+        If you need both 2×2 and 3×3 matrix multiplication and can tolerate the 115 mW power increase, DPR saves board space and provides runtime flexibility. If you only need one mode or power is critical, stick with static designs.
+      </p>
+
+      <p>
+        The real lesson: there's no universal answer. DPR is a tool with specific costs and benefits. Understanding them lets you make the right trade-off for your application.
+      </p>
+
+      <hr>
+
+      <p><strong>Technical details:</strong></p>
+      <ul>
+        <li>FPGA: Xilinx KCU116 (xcku5p-ffvb676-2-e)</li>
+        <li>Family: Kintex UltraScale+</li>
+        <li>Tool: Vivado 2025.2</li>
+        <li>Clock: 100 MHz (all designs)</li>
+        <li>Implementation: Lookup-table based matrix multiplication</li>
+        <li>Reconfiguration: PCAP interface at 400 MB/s</li>
+        <li>Tested: Both FPGA hardware and simulation</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<footer>
+<div class="container"> ∞︎︎ prachi</div>
+</footer>
+</body>
+</html>
